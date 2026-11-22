@@ -1,0 +1,46 @@
+name: Build Portable Windows EXE
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-windows-portable:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build artifacts
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build standalone portable EXE
+        run: npx tauri build --no-bundle
+
+      - name: Stage portable folder
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist-portable | Out-Null
+          $exe = Get-ChildItem -Path "src-tauri\target\release\*.exe" | Where-Object { $_.Name -notlike "*setup*" } | Select-Object -First 1
+          Copy-Item $exe.FullName -Destination "dist-portable\ScrcpyGUI-Portable.exe"
+          New-Item -ItemType File -Force -Path "dist-portable\portable.flag" | Out-Null
+
+      - name: Upload Portable EXE Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ScrcpyGUI-Portable-Windows-x64
+          path: dist-portable/
+          retention-days: 30
