@@ -1,4 +1,5 @@
 mod commands;
+mod window_manager;
 // Windows-only: drag the borderless scrcpy window with the mouse
 // (Ctrl+Alt+Shift+W).
 #[cfg(target_os = "windows")]
@@ -86,6 +87,7 @@ pub fn run() {
                 final_capture_hint: Mutex::new(HashMap::new()),
             });
 
+            app.manage(window_manager::WindowManagerState::new());
             // Ctrl+Alt+Shift+C (recentre the active mirror window) on every
             // platform, plus Ctrl+Alt+Shift+W (drag the borderless window) on
             // Windows. Non-fatal if a shortcut fails to register.
@@ -128,7 +130,10 @@ pub fn run() {
             commands::run_terminal_command,
             commands::check_scrcpy_update,
             close_splashscreen,
-            get_app_version
+            get_app_version,
+            window_manager::get_saved_window_layouts,
+            window_manager::set_window_persistence_enabled,
+            window_manager::reset_device_window_layout,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
