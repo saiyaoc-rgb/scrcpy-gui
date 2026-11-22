@@ -1451,7 +1451,20 @@ pub async fn run_scrcpy(window: Window, state: State<'_, ScrcpyState>, config: S
 
     // First attempt: honour the user's audio codec choice. In "auto" mode this
     // launches without --audio-codec, matching the previous default behaviour.
-    let initial_args = build_scrcpy_args(&config, video_dir.clone(), None);
+    let mut initial_args = build_scrcpy_args(&config, video_dir.clone(), None);
+    if config.session_mode == "mirror" && !config.fullscreen.unwrap_or(false) {
+        let saved_args = app_handle
+            .state::<crate::window_manager::WindowManagerState>()
+            .initial_scrcpy_window_args(&config.device);
+        if !saved_args.is_empty() {
+            initial_args.retain(|a| {
+                !a.starts_with("--window-x=")
+                    && !a.starts_with("--window-y=")
+                    && !a.starts_with("--window-width=")
+                    && !a.starts_with("--window-height=")
+            });
+            initial_args.extend(saved_args);
+        }
 
     let (child, audio_error_flag) = spawn_scrcpy_streams(
         &window,
@@ -1489,7 +1502,15 @@ pub async fn run_scrcpy(window: Window, state: State<'_, ScrcpyState>, config: S
     // the mirror window's remembered position.
     let track_pos = config_mon.session_mode == "mirror" && !config_mon.fullscreen.unwrap_or(false);
 
-    tokio::spawn(async move {
+       if track_pos {
+        if let Some(pid) = initial_scrcpy_pid {
+            app_handle
+                .state::<crate::window_manager::WindowManagerState>()
+                .start_tracking_pid(config.device.clone(), pid);
+        }
+   
+    }
+     tokio::spawn(async move {
         let mut current_audio_flag = audio_error_flag;
         let mut chain_index: usize = 0;
         let mut current_scrcpy_pid = initial_scrcpy_pid;
@@ -1547,7 +1568,10 @@ pub async fn run_scrcpy(window: Window, state: State<'_, ScrcpyState>, config: S
                 AttemptOutcome::WaitError(e) => {
                     let _ = window_mon.emit("scrcpy-log", format!("[SYSTEM] Error waiting for scrcpy: {}", e));
                     emit_window_pos_and_stop(&window_mon, &device_mon, requested_pos, first_window_pos, last_window_pos);
-                    break;
+                     app_handle_mon
+                        .state::<crate::window_manager::WindowManagerState>()
+                        .stop_tracking(&device_mon);
+                   break;
                 }
                 AttemptOutcome::UserStopped => {
                     // stop_scrcpy grabs one last, guaranteed-fresh sample right
@@ -1562,7 +1586,10 @@ pub async fn run_scrcpy(window: Window, state: State<'_, ScrcpyState>, config: S
                         .remove(&device_mon);
                     let pos_to_persist = fresh_pos.or(last_window_pos);
                     emit_window_pos_and_stop(&window_mon, &device_mon, requested_pos, first_window_pos, pos_to_persist);
-                    break;
+             app_handle_mon
+                        .state::<crate::window_manager::WindowManagerState>()
+                        .stop_tracking(&device_mon);
+                           break;
                 }
                 AttemptOutcome::Exited(status) => {
                     let _ = window_mon.emit("scrcpy-log", format!("[SYSTEM] Scrcpy process exited with status: {}", status));
@@ -1592,6 +1619,13 @@ pub async fn run_scrcpy(window: Window, state: State<'_, ScrcpyState>, config: S
                         ).await {
                             Ok((new_child, new_flag)) => {
                                 current_scrcpy_pid = new_child.id();
+                        if track_pos {
+                            if let Some(pid) = current_scrcpy_pid {
+                                app_handle_mon
+                                    .state::<crate::window_manager::WindowManagerState>()
+                                    .start_tracking_pid(device_mon.clone(), pid);
+                            }
+                        }
                                 // New window: re-learn its decoration offset by
                                 // resampling this attempt from scratch. Clear the
                                 // last sample too, so we never persist the old
@@ -1609,7 +1643,10 @@ pub async fn run_scrcpy(window: Window, state: State<'_, ScrcpyState>, config: S
                             Err(e) => {
                                 let _ = window_mon.emit("scrcpy-log", format!("[SYSTEM] Failed to spawn retry: {}", e));
                                 emit_window_pos_and_stop(&window_mon, &device_mon, requested_pos, first_window_pos, last_window_pos);
-                                break;
+                      app_handle_mon
+                            .state::<crate::window_manager::WindowManagerState>()
+                            .stop_tracking(&device_mon);
+                                  break;
                             }
                         }
                     } else if should_auto_fallback && audio_failed {
@@ -1618,10 +1655,16 @@ pub async fn run_scrcpy(window: Window, state: State<'_, ScrcpyState>, config: S
                             "[SYSTEM] No compatible audio codec found. Consider disabling audio forwarding.".to_string(),
                         );
                         emit_window_pos_and_stop(&window_mon, &device_mon, requested_pos, first_window_pos, last_window_pos);
-                        break;
+             app_handle_mon
+                        .state::<crate::window_manager::WindowManagerState>()
+                        .stop_tracking(&device_mon);
+                               break;
                     } else {
                         emit_window_pos_and_stop(&window_mon, &device_mon, requested_pos, first_window_pos, last_window_pos);
-                        break;
+             app_handle_mon
+                        .state::<crate::window_manager::WindowManagerState>()
+                        .stop_tracking(&device_mon);
+                               break;
                     }
                 }
             }
