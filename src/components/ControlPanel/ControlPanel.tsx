@@ -14,6 +14,9 @@ interface ControlPanelProps {
     onListOptions: (arg: string) => void;
     detectedCameras?: { id: string, name: string }[];
     renderDriverSupport?: RenderDriverSupport;
+    onStartAll?: () => void;
+    launchAllCount?: number;
+    isLaunchingAll?: boolean;
 }
 
 const BitrateControl = ({ label, value, onChange }: { label: string, value: number, onChange: (val: number) => void }) => {
@@ -75,6 +78,9 @@ export default function ControlPanel({
     isRunning,
     onListOptions,
     detectedCameras = [],
+    onStartAll,
+    launchAllCount = 0,
+    isLaunchingAll = false,
     renderDriverSupport = { hostOs: 'unknown', supportsRenderDriver: false, supportedDrivers: [] }
 }: ControlPanelProps) {
     const { t } = useI18n();
@@ -606,7 +612,7 @@ export default function ControlPanel({
                 </div>
             </div>
 
-            <div className="pt-2 relative z-10">
+            <div className="pt-2 relative z-10 space-y-2">
                 {!isRunning ? (
                     <button
                         onClick={onStart}
@@ -637,6 +643,22 @@ export default function ControlPanel({
                         </span>
                     </button>
                 )}
+{onStartAll && (
+<button
+onClick={onStartAll}
+disabled={isLaunchingAll || launchAllCount === 0}
+className="w-full py-2.5 rounded-2xl text-sm font-bold uppercase tracking-[0.15em] transition-all relative overflow-hidden group active:scale-[0.98] border border-primary/40 bg-primary/15 hover:bg-primary/25 disabled:opacity-40 disabled:cursor-not-allowed text-white"
+>
+<span className="relative z-10 flex items-center justify-center gap-2">
+<Play fill="currentColor" size={14} className="group-hover:scale-110 transition-transform" />
+{isLaunchingAll
+? "Launching All..."
+: launchAllCount > 0
+? `Launch All (${launchAllCount})`
+: "Launch All"}
+</span>
+</button>
+)}
             </div>
         </main>
     );
