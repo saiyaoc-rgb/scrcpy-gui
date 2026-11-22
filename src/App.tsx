@@ -80,7 +80,8 @@ function App() {
   const [appVersion, setAppVersion] = useState("3.3.0");
   const [lastCheckedPath, setLastCheckedPath] = useState<string | undefined>(undefined);
   const [hasCheckedUpdate, setHasCheckedUpdate] = useState(false);
-
+  const [isLaunchingAll, setIsLaunchingAll] = useState(false);
+  
   const showAlert = (
     title: string,
     message: string,
@@ -213,7 +214,28 @@ function App() {
     }
     await runScrcpy(config);
   };
-
+  const handleStartAll = async () => {
+const idleDevices = devices.filter((d) => !runningDevices.includes(d));
+if (idleDevices.length === 0) {
+if (devices.length === 0) {
+showAlert(t('alerts.noDeviceSelectedTitle'), t('alerts.noDeviceSelectedMessage'), "warning");
+}
+return;
+}
+setIsLaunchingAll(true);
+try {
+for (let i = 0; i < idleDevices.length; i++) {
+const serial = idleDevices[i];
+await runScrcpy({ ...config, device: serial });
+if (i < idleDevices.length - 1) {
+await new Promise((r) => setTimeout(r, 250));
+}
+}
+} finally {
+setIsLaunchingAll(false);
+}
+};
+  
   const handleStop = async () => {
     if (!activeDevice) return;
     await stopScrcpy(activeDevice);
@@ -361,6 +383,9 @@ function App() {
                     setConfig={setConfig}
                     onStart={handleStart}
                     onStop={handleStop}
+onStartAll={handleStartAll}
+launchAllCount={devices.filter((d) => !runningDevices.includes(d)).length}
+isLaunchingAll={isLaunchingAll}
                     isRunning={sessionRunning}
                     detectedCameras={detectedCameras}
                     renderDriverSupport={renderDriverSupport}
